@@ -1,10 +1,51 @@
 #include "renderloop.h"
+#include <optional>
 
 void RenderLoop::createWindow() {
     glfwInit(); 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZEABLE, GLFW_FALSE);
     window = glfwCreateWindow(WIDTH, HEIGHT, "OTTOEngine", nullptr, nullptr;
+}
+
+uint32_t rateDevice(const VkPhysicalDevice &device) {
+    //can't do shit without a shader
+    if(!device.geometryShader) {
+        return 0;
+    }
+
+    uint32_t score = device.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000 : 0;
+    score += device.limits.maxImageDimension2D;
+    return score;
+}
+void Renderloop::setupPhysicalDevice() {
+    uint32_t numDevices = 0;
+    vkEnumeratePhysicalDevices(vkInst, &numDevices, nullptr);
+    if(numDevices == 0) {
+        throw std::runtime_error("You have a garbage computer/OS; please rethink life.\n");
+    }
+
+    VkPhysicalDevice devices[numDevices];
+    vkEnumeratePhysicalDevices(vkInst, &numDevices, devices);
+    uint32_t maxScore = -1;
+    VkPhysicalDevice physDevice;
+    for(const auto& dev : devices) {
+        uint32_t score = rateDevice(&dev); 
+        if(score > maxScore) {
+            maxScore = score;
+            physDevice = dev;
+        }
+    }
+     
+}
+
+void Renderloop::checkSupportedExtensions() {
+    uint32_t numSupportedExtensions = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &numExtensions, nullptr);
+
+    //check this later
+    VkExtensionProperties supportedExtensions[numExtensions];
+    vkEnumerateInstance(nullptr, &numSupportedExtensions, supportedExtensions);
 }
 
 void RenderLoop::initVulkan() {
@@ -23,10 +64,10 @@ void RenderLoop::initVulkan() {
 
     //extensions to interact with host OS
     unsigned int extensionCount;
-    const char **extensions;
-    extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
+    const char **extensionNames;
+    extensionNames = glfwGetRequiredInstanceExtensions(&extensionCount);
     createInfo.enabledExtensionCount = extensionCount;
-    createInfo.ppEnabledExtensionNames = extensions;
+    createInfo.ppEnabledExtensionNames = extensionNames;
 
     createInfo.enabledLayerCount = 0;
 
@@ -34,6 +75,7 @@ void RenderLoop::initVulkan() {
         throw std::runtime_error("Failed to create vk instance\n");
     }
 
+    
 }
 
 void RenderLoop::mainloop() {
