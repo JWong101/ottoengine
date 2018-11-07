@@ -11,7 +11,7 @@ void RenderLoop::initVulkan() {
     createInstance();
     VkApplicationInfo appInfo;
     info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    info.pApplicationName = "Victoria 3";
+    info.pApplicationName = "Victoria 3"; //TODO: simplify later
     info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     info.pEngineName = "OttoEngine";
     info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
