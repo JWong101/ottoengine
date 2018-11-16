@@ -5,7 +5,7 @@ void RenderLoop::createWindow() {
     glfwInit(); 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZEABLE, GLFW_FALSE);
-    window = glfwCreateWindow(WIDTH, HEIGHT, "OTTOEngine", nullptr, nullptr;
+    window = glfwCreateWindow(WIDTH, HEIGHT, "OTTOEngine", nullptr, nullptr);
 }
 
 uint32_t rateDevice(const VkPhysicalDevice &device) {
