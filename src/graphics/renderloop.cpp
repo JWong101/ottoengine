@@ -1,8 +1,4 @@
 #include "renderloop.h"
-#include <optional>
-#include <vector>
-#include <unordered_set>
-
 
 
 
@@ -22,13 +18,16 @@ bool RenderLoop::checkValidationLayerSupport() {
 
     std::unordered_set<std::string> availableLayerNames;
     
-    for (const auto &layerProperties : availableLayers)) {
+    std::cout << "num layers: " << layerCount << std::endl;
+    std::cout << "available layers:" << std::endl;
+    for (const auto &layerProperties : availableLayers) {
+        std::cout << layerProperties.layerName << std::endl;
         availableLayerNames.emplace(layerProperties.layerName);
     }
     
     for (const std::string layerName : validationLayers) {
         // if the layerName is inside we can maintain truth, otherwise we return false, otherwise keep checking
-        if (!availableLayerNames.count()) {
+        if (!availableLayerNames.count(layerName)) {
             return false;
         }
     }
@@ -36,15 +35,18 @@ bool RenderLoop::checkValidationLayerSupport() {
 }
 
 // gets a vector of all the GLFW extentions
+/**
 std::vector<std::string> RenderLoop::getRequiredExtensions() {
-    uint32_t glfwExtentionCount = 0;
+    uint32_t glfwExtensionCount = 0;
     const char **glfwExtentionsBasic = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     // TODO:  make sure this works, prob wont automaticly convert char * to strings
+    // TODO: make this on the heap
     const std::vector<std::string> glfwExtentions {glfwExtentionsBasic, glfwExtentionsBasic + glfwExtensionCount};
 
-    if (enableValidationLayers) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    if (enableValidationLayers) glfwExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     return glfwExtentions;
 }
+*/
 
 // TODO: im pretty sure there needs to be more here
 void RenderLoop::createInstance() {
@@ -53,9 +55,9 @@ void RenderLoop::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("validation layers requested, but not available!");
     }
-
     // search for supported extentions
 
+    uint32_t extensionCount;
     // get the number of extentions, make a vector of that length, then get and save them in that vector
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
     std::vector<VkExtensionProperties> extensions(extensionCount);
@@ -69,27 +71,30 @@ void RenderLoop::createInstance() {
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 0);
 
-    VkInstanceCreateInfo createInfo = {};
+    VkInstanceCreateInfo createInfo;
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
     //extensions to interact with host OS
-    uint32_t extensionCount;
     const char **extensionNames;
-    extensionNames = glfwGetRequiredInstanceExtensions(&extensionCount);
-    createInfo.enabledExtensionCount = extensionCount;
+    uint32_t glfwExtensionCount;
+    extensionNames = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    createInfo.enabledExtensionCount = glfwExtensionCount;
     createInfo.ppEnabledExtensionNames = extensionNames;
 
     createInfo.enabledLayerCount = 0;
 
     //TODO: disparity in code above and code bellow, determine what we want to use
 
-    auto extensions = getRequiredExtensions();
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    createInfo.ppEnabledExtensionNames = extensions.data();
+//    auto extensions = getRequiredExtensions();
+//    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+//    createInfo.ppEnabledExtensionNames = extensions.data();
 
     // create VKInstance
-    if(vkCreateInstance(&createInfo, nullptr, &vkInst) != VK_SUCCESS) {
+    std::cout << "about to create instance" << std::endl;
+    int code = vkCreateInstance(&createInfo, nullptr, vkInst);
+    if(code != VK_SUCCESS) {
+        std::cout << "Error code: " << code << std::endl;
         throw std::runtime_error("Failed to create vk instance\n");
     }
 
@@ -101,6 +106,7 @@ void RenderLoop::createInstance() {
     }
 }
 
+/**
 static VKAPI_ATTR VkBool32 VKAPI_CALL RenderLoop::debugCallback (
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -112,38 +118,45 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL RenderLoop::debugCallback (
     
     return VK_FALSE;
 }
+*/
 
 void RenderLoop::createWindow() {
     glfwInit(); 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZEABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     window = glfwCreateWindow(WIDTH, HEIGHT, "OTTOEngine", nullptr, nullptr);
 }
 
 uint32_t rateDevice(const VkPhysicalDevice &device) {
+    //Get device properties and features
+
+    VkPhysicalDeviceProperties deviceProperties;
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
     //can't do shit without a shader
-    if(!device.geometryShader) {
+    if(!deviceFeatures.geometryShader) {
         return 0;
     }
 
-    uint32_t score = device.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000 : 0;
-    score += device.limits.maxImageDimension2D;
+    uint32_t score = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000 : 0;
+    score += deviceProperties.limits.maxImageDimension2D;
     return score;
 }
 
-void Renderloop::setupPhysicalDevice() {
+void RenderLoop::setupPhysicalDevice() {
     uint32_t numDevices = 0;
-    vkEnumeratePhysicalDevices(vkInst, &numDevices, nullptr);
+    vkEnumeratePhysicalDevices(*vkInst, &numDevices, nullptr);
     if(numDevices == 0) {
         throw std::runtime_error("You have a garbage computer/OS; please rethink life.\n");
     }
 
     VkPhysicalDevice devices[numDevices];
-    vkEnumeratePhysicalDevices(vkInst, &numDevices, devices);
+    vkEnumeratePhysicalDevices(*vkInst, &numDevices, devices);
     uint32_t maxScore = -1;
     VkPhysicalDevice physDevice;
     for(const auto& dev : devices) {
-        uint32_t score = rateDevice(&dev); 
+        uint32_t score = rateDevice(dev); 
         if(score > maxScore) {
             maxScore = score;
             physDevice = dev;
@@ -151,22 +164,30 @@ void Renderloop::setupPhysicalDevice() {
     }
 }
 
-void Renderloop::checkSupportedExtensions() {
+void RenderLoop::checkSupportedExtensions() {
     uint32_t numSupportedExtensions = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &numExtensions, nullptr);
+    vkEnumerateInstanceExtensionProperties(nullptr, &numSupportedExtensions, nullptr);
 
     // TODO: check this later
-    VkExtensionProperties supportedExtensions[numExtensions];
-    vkEnumerateInstance(nullptr, &numSupportedExtensions, supportedExtensions);
+    VkExtensionProperties supportedExtensions[numSupportedExtensions];
+    vkEnumerateInstanceExtensionProperties(nullptr, &numSupportedExtensions, supportedExtensions);
 }
 
-void RenderLoop::initVulkan() {
+RenderLoop::RenderLoop() : vkInst(new VkInstance()) {
+
+}
+
+RenderLoop::~RenderLoop() {
+    delete vkInst;
+}
+
+void RenderLoop::init() {
     
     createInstance();
     
 
     // select a supported VkPhysicalDevice
-    setupPhysicalDevice()
+    setupPhysicalDevice();
 
     // create a VkDevice and a VkQueue
 
@@ -180,6 +201,7 @@ void RenderLoop::initVulkan() {
     // Set up the graphics pipeline (VkPipeline)
 
     // more stuff   
+    createWindow();
 }
 
 void RenderLoop::mainloop() {
@@ -189,7 +211,7 @@ void RenderLoop::mainloop() {
 }
 
 void RenderLoop::cleanup() {
-    vkDestroyInstance(vkInst, nullptr);
+    vkDestroyInstance(*vkInst, nullptr);
     glfwDestroyWindow(window);
     glfwTerminate();
 }

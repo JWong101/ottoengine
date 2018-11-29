@@ -1,12 +1,10 @@
-#define GLFW_INCLUDE_VULKAN
-#include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
 #include "graphics/renderloop.h"
 
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
 
+/*
 const int WIDTH = 800;
 const int HEIGHT = 600;
 
@@ -78,16 +76,13 @@ private:
         }
     }
 };
+**/
 
 int main() {
-    HelloTriangleApplication app;
+    RenderLoop *render = new RenderLoop();
+    render->init();
 
-    try {
-        app.run();
-    } catch (const std::exception& e) {
-        std::cerr << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
-
+    render->mainloop();
+    render->cleanup();
     return EXIT_SUCCESS;
 }

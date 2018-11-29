@@ -1,6 +1,16 @@
+#ifndef RENDERLOOP_H_
+#define RENDERLOOP_H_
+
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+//#include <vulkan/vulkan.h>
+
 #include <string>
-#include <vulkan/vulkan.h>
+#include <vector>
+#include <unordered_set>
+#include <iostream>
+
+#define NDEBUG
 
 class RenderLoop {
 
@@ -11,7 +21,7 @@ private:
 
 
     // Validation Layer stuff used to debug
-    const std::vector<const std::string> validationLayers = {
+    const std::vector<std::string> validationLayers = {
         "VK_LAYER_LUNARG_standard_validation"
     };
 
@@ -23,27 +33,26 @@ private:
 
     GLFWwindow *window;
     VkInstance *vkInst;
-    const uint32_t WIDTH = 600;
-    const uint32_t HEIGHT = 400;
     bool checkValidationLayerSupport();
     
     std::vector<std::string> getRequiredExtensions(); 
 
     void createInstance();
     void createWindow();
-    void initVulkan();
-    void init();
-    void mainLoop();
-    void cleanup();
     void checkSupportedExtensions();
    
-   
+    void setupPhysicalDevice();   
     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData);
 public:
-    void run();
+    RenderLoop();
+    ~RenderLoop();
+    void init();
+    void mainloop();
+    void cleanup();
  
 };
+#endif
