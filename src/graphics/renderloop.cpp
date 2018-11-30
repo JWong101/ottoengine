@@ -34,44 +34,7 @@ bool RenderLoop::checkValidationLayerSupport() {
     return true;
 }
 
-// gets a vector of all the GLFW extentions
-/**
-std::vector<std::string> RenderLoop::getRequiredExtensions() {
-    uint32_t glfwExtensionCount = 0;
-    const char **glfwExtentionsBasic = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    // TODO:  make sure this works, prob wont automaticly convert char * to strings
-    // TODO: make this on the heap
-    const std::vector<std::string> glfwExtentions {glfwExtentionsBasic, glfwExtentionsBasic + glfwExtensionCount};
-
-    if (enableValidationLayers) glfwExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    return glfwExtentions;
-}
-*/
-
-// TODO: im pretty sure there needs to be more here
-void RenderLoop::createInstance() {
-
-    // check for validation layer support and if validation layers is enabled   
-    if (enableValidationLayers && !checkValidationLayerSupport()) {
-        throw std::runtime_error("validation layers requested, but not available!");
-    }
-    // search for supported extentions
-
-    uint32_t extensionCount;
-    // get the number of extentions, make a vector of that length, then get and save them in that vector
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-    std::vector<VkExtensionProperties> extensions(extensionCount);
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-    VkApplicationInfo appInfo;
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Victoria 3"; //TODO: simplify later
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "OttoEngine";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 0);
-
-    VkInstanceCreateInfo createInfo;
+void RenderLoop::setupCreationInfo(VkInstanceCreateInfo &createInfo, VkApplicationInfo &appInfo) {
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
@@ -83,12 +46,38 @@ void RenderLoop::createInstance() {
     createInfo.ppEnabledExtensionNames = extensionNames;
 
     createInfo.enabledLayerCount = 0;
+}
 
-    //TODO: disparity in code above and code bellow, determine what we want to use
+void RenderLoop::setupApplicationInfo(VkApplicationInfo &appInfo) {
+    // search for supported extentions
 
-//    auto extensions = getRequiredExtensions();
-//    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-//    createInfo.ppEnabledExtensionNames = extensions.data();
+    uint32_t extensionCount;
+    // get the number of extentions, make a vector of that length, then get and save them in that vector
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "Victoria 3"; 
+    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pEngineName = "OttoEngine";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 0);
+}
+// TODO: im pretty sure there needs to be more here
+void RenderLoop::createInstance() {
+
+    // check for validation layer support and if validation layers is enabled   
+    if (enableValidationLayers && !checkValidationLayerSupport()) {
+        throw std::runtime_error("validation layers requested, but not available!");
+    }
+
+    VkApplicationInfo appInfo;
+    setupApplicationInfo(appInfo);
+
+    VkInstanceCreateInfo createInfo;
+    setupCreationInfo(createInfo, appInfo);
 
     // create VKInstance
     std::cout << "about to create instance" << std::endl;
@@ -98,12 +87,6 @@ void RenderLoop::createInstance() {
         throw std::runtime_error("Failed to create vk instance\n");
     }
 
-    // print out the avalable extentions
-    std::cout << "available extensions:" << std::endl;
-
-    for (const auto& extension : extensions) {
-        std::cout << "\t" << extension.extensionName << std::endl;
-    }
 }
 
 /**
@@ -127,18 +110,44 @@ void RenderLoop::createWindow() {
     window = glfwCreateWindow(WIDTH, HEIGHT, "OTTOEngine", nullptr, nullptr);
 }
 
-uint32_t rateDevice(const VkPhysicalDevice &device) {
-    //Get device properties and features
+void RenderLoop::findQueueFamilies(const VkPhysicalDevice &device) {
+    uint32_t queueFamilyCount;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount,nullptr); 
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
-    VkPhysicalDeviceProperties deviceProperties;
+    //see if the device has a queue family that can process graphics commands
+    uint32_t i = 0;
+    for(const auto& queueFamily : queueFamilies) {
+        if(queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            //temporarily break
+            queueFamilyIndices["GRAPHICS_FAMILY"] = i;
+            break;
+        }
+        ++i;
+    }
+}
+
+bool RenderLoop::isDeviceSuitable(const VkPhysicalDevice &device) {
     VkPhysicalDeviceFeatures deviceFeatures;
-    vkGetPhysicalDeviceProperties(device, &deviceProperties);
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+    return deviceFeatures.geometryShader && queueFamilyIndices.find("GRAPHICS_FAMILY") != queueFamilyIndices.end();
+}
+
+
+
+uint32_t RenderLoop::rateDevice(const VkPhysicalDevice &device) {
+    
+    //Get device properties and features
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    
     //can't do shit without a shader
-    if(!deviceFeatures.geometryShader) {
+    if(!isDeviceSuitable(device)) {
         return 0;
     }
 
+    //prioritize devices that are dgpus and support higher resolutions 
     uint32_t score = deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ? 1000 : 0;
     score += deviceProperties.limits.maxImageDimension2D;
     return score;
@@ -174,7 +183,7 @@ void RenderLoop::checkSupportedExtensions() {
 }
 
 RenderLoop::RenderLoop() : vkInst(new VkInstance()) {
-
+    queueFamilyIndices = std::unordered_map<std::string, int>();
 }
 
 RenderLoop::~RenderLoop() {
@@ -190,9 +199,10 @@ void RenderLoop::init() {
     setupPhysicalDevice();
 
     // create a VkDevice and a VkQueue
-
+     
 
     // create a window and a swap chain(? idk whats handled by GLFW)
+    createWindow();
 
     // create a render pass that specifies the render targets and usage
 
@@ -201,7 +211,6 @@ void RenderLoop::init() {
     // Set up the graphics pipeline (VkPipeline)
 
     // more stuff   
-    createWindow();
 }
 
 void RenderLoop::mainloop() {
